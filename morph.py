@@ -4,38 +4,31 @@ import pandas
 
 from config import CREATURES_NAME_XLSX_PATH
 
-tribe = "アーマード・ドラゴン"
+tribe = "エンジェル・コマンド"
 nlp = spacy.load("ja_ginza")
 
 def generate_model_from_df(df):
-    model = {"root" : [], "conpound": []}
+    model = {"root" : [], "conpound": [], "start": []}
     for index, data in df.iterrows():
         name = data[0]
         generated = generate_model(name)
         model["root"].extend(generated["root"])
         model["conpound"].extend(generated["conpound"])
+        model["start"].extend(generated["start"])
     return model
 
 def generate_model(name):
-    model = {"root" : [], "conpound": []}
+    model = {"root" : [], "conpound": [], "start": []}
     doc = nlp(name)
     for sent in doc.sents:
-        for token in sent:
-            if token.dep_ == "ROOT":
+        for index, token in enumerate(sent):
+            if index == 0:
+                model["start"].append(token)
+            elif index + 1 == len(sent):
                 model["root"].append(token)
             else:
                 model["conpound"].append(token)
     return model
-
-def generate_creature_name(model):
-    sentence_number = random.randint(1, 3)
-    root_name = random.choice(model["root"])
-    conpounds = get_conpounds(model["conpound"], root_name)
-    secounds_name = random.choice(conpounds)
-    others = random.sample([i for i in model["conpound"]], sentence_number)
-    others.append(secounds_name)
-    others.append(root_name)
-    return others
 
 def normalize(tokens, l):
     raw = []
@@ -61,8 +54,50 @@ def get_name_expect_sym(l):
         return get_name_expect_sym(l)
     return name
 
+def model_fitting_both(model):
+    counter = {}
+    counter["root"] = model_fitting(model["root"])
+    counter["conpound"] = model_fitting(model["conpound"])
+    counter["start"] = model_fitting(model["start"])
+    return counter
 
-df = pandas.read_excel(CREATURES_NAME_XLSX_PATH, sheet_name=tribe)
-model = generate_model_from_df(df)
-name = generate_creature_name(model)
-print(name)
+def model_fitting(model):
+    counter = {}
+    for token in model:
+        if token.text in counter.keys():
+            counter[token.text] += 1
+        else:
+            counter[token.text] = 1
+    return counter
+
+def counter_generate(counter):
+    gause_numbers = []
+    for key, value in counter.items():
+        for i in range(value):
+            gause_numbers.append(key)
+    index = random.randrange(len(gause_numbers))
+    return gause_numbers[index]
+
+def generate_creature_name(counter, input_name):
+    name = []
+    conpounds = []
+    name.append(counter_generate(counter["start"]))
+    count = random.randrange(0, 3)
+    for i in range(count):
+        conpound = counter_generate(counter["conpound"])
+        conpounds.append(conpound)
+    conpounds.insert(random.randint(0, len(conpounds)), input_name)
+    name.extend(conpounds)
+    name.append(counter_generate(counter["root"]))
+    return name
+
+def main():
+    input_name = "ハルプブ"
+    df = pandas.read_excel(CREATURES_NAME_XLSX_PATH, sheet_name=tribe)
+    model = generate_model_from_df(df)
+    counter = model_fitting_both(model)
+    name = generate_creature_name(counter, input_name)
+    print(name)
+
+if __name__ == "__main__":
+    main()
